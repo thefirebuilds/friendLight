@@ -15,9 +15,9 @@ CRGB leds[NUM_LEDS];
 #define BRIGHTNESS          96
 //end LED light specs
 
-const char* ssid = "";
-const char* password = "";
-String node = "willy";
+const char* ssid = "YOUR WIFI SSID";
+const char* password = "YOUR WIFI PW";
+String node = "A NODE NAME";
 
 //initalize memory space for JSON
 StaticJsonDocument<200> doc;
@@ -29,7 +29,7 @@ String HTTP_METHOD = "POST";
 char HOST_NAME[] = "isellmiataparts.com";
 String PATH_NAME = "https://isellmiataparts.com/friendship/friendship.php";
 String GET_PATH = "https://isellmiataparts.com/friendship/status.json";
-String token = "";
+String token = "TOKEN PASS";
 
 const int buttonPin = 4;
 int buttonState = 0;
@@ -41,7 +41,7 @@ static const unsigned long REFRESH_INTERVAL = 500; // ms
 static unsigned long lastRefreshTime = 0;
 
 //timer components for sleeping
-const unsigned long SLEEP_INTERVAL = 1800; //set this to fall asleep after 30 mins of no input - 1800
+const unsigned long SLEEP_INTERVAL = 60; //set this to fall asleep after 30 mins of no input - 1800
 int websiteUpdateTime = 0;
 int updateTime = 0;
 bool sleepStatus = false;
@@ -98,36 +98,37 @@ void loop()
   delay(1000); //slow things down a bit for rapid button presses
   if(WiFi.status()== WL_CONNECTED)
   { 
-    //if the website color is more up to date we should accept that color and set it.
+    //if the website color is more up to date we should accept that color and set it if it was set by the other node.
     //if the device is out of sync with the web we should push the color
-    //established - the device color is out of sync with the web
-    if(colorFromWeb != deviceColor)
+    if(colorFromWeb != deviceColor) //established - the device color is out of sync with the web
     {
-      if(websiteUpdateTime > updateTime)
+      if(websiteUpdateTime > updateTime) //the website was more recently updated than the device
         { 
-          setLEDColor(colorFromWeb);
+          deviceColor = colorFromWeb; 
+          setLEDColor(colorFromWeb);      
           FastLED.show();
           sleepStatus = false;
         }
-      if(updateTime > websiteUpdateTime)
+      if(updateTime > websiteUpdateTime) //the device was more recently updated than the device
         { 
           //update the website with the new color.
-          int updateStatus = postUpdate(token, deviceColor);
           colorFromWeb = deviceColor;
-          if (updateStatus>0) 
-          {
-            Serial.print("HTTP Response code: ");
-            Serial.println(updateStatus);
-          }
-          else 
-          {
-            Serial.print("Error code: ");
-            Serial.println(updateStatus);
-          }
+        }
+        //now that we've reconciled which color should be on the web, post the update
+        int updateStatus = postUpdate(token, deviceColor);
+        if (updateStatus>0) 
+        {
+          Serial.print("HTTP Response code: ");
+          Serial.println(updateStatus);
+        }
+        else 
+        {
+          Serial.print("Error code: ");
+          Serial.println(updateStatus);
         }
     }
     //every 30s check the web and get the color
-    colorFromWeb = httpGetColorRateLimited(deviceColor);
+    colorFromWeb = httpGetColorRateLimited();
   }
   else 
   {
@@ -219,7 +220,7 @@ void setLEDColor(int currentColor)
   if(currentColor == 0) { fill_solid( leds, NUM_LEDS, CRGB::Black); }
   if(currentColor == 1) { fill_solid( leds, NUM_LEDS, CRGB::GhostWhite); }
   if(currentColor == 2) { fill_solid( leds, NUM_LEDS, CRGB::Yellow); }
-  if(currentColor == 3) { fill_solid( leds, NUM_LEDS, CRGB::LightGreen); }
+  if(currentColor == 3) { fill_solid( leds, NUM_LEDS, CRGB::Turquoise); }
   if(currentColor == 4) { fill_solid( leds, NUM_LEDS, CRGB::Blue); }
   if(currentColor == 5) { fill_solid( leds, NUM_LEDS, CRGB::Purple); }
   if(currentColor == 6) { fill_solid( leds, NUM_LEDS, CRGB::PowderBlue); }
@@ -229,19 +230,14 @@ void setLEDColor(int currentColor)
 }
 
 //next two functions are to provide a timer for ring color updates
-int httpGetColorRateLimited(int currentDeviceColor)
+int httpGetColorRateLimited()
 {
 	static const unsigned long REFRESH_INTERVAL = 30000; // ms
 	static unsigned long lastRefreshTime = 0;
-	//returns the current color if it's not time to update yet
-  int colorFromWeb = currentDeviceColor;
-
 	if(millis() - lastRefreshTime >= REFRESH_INTERVAL)
 	{
 		lastRefreshTime += REFRESH_INTERVAL;
                 colorFromWeb = getCurrentColor();
-                Serial.println("Grabbing Current Color from Web and Returning");
-                Serial.println(colorFromWeb);
 	}
   return colorFromWeb;
 }
@@ -253,7 +249,7 @@ void buttonPress()
     //button pressed, iterate the color.  Run only one time on this button press.
     deviceColor = colorSelector(deviceColor);
   }
-
+  //i dont think the deviceColor is getting updated correctly here, but check the calling func
   setLEDColor(deviceColor);
   FastLED.show();
   //button pressed, reset input
@@ -271,7 +267,8 @@ void sleepTimer()
     FastLED.show();
     //set sleep status to true so device knows where it is when it comes back online (address color advancement)
     sleepStatus = true;
-  } 
+  }
+  //if the update time on the website changed we should wake them up. 
 }
 
 unsigned long getTime() {
