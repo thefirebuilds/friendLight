@@ -15,8 +15,8 @@ CRGB leds[NUM_LEDS];
 #define BRIGHTNESS          96
 //end LED light specs
 
-const char* ssid = "Steamed LANs";
-const char* password = "albanyexpression";
+const char* ssid = "";
+const char* password = "";
 String node = "willy";
 
 //initalize memory space for JSON
@@ -29,7 +29,7 @@ String HTTP_METHOD = "POST";
 char HOST_NAME[] = "isellmiataparts.com";
 String PATH_NAME = "https://isellmiataparts.com/friendship/friendship.php";
 String GET_PATH = "https://isellmiataparts.com/friendship/status.json";
-String token = "grandpasconnyandella";
+String token = "";
 
 const int buttonPin = 4;
 int buttonState = 0;
