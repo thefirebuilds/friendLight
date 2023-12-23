@@ -15,9 +15,9 @@ CRGB leds[NUM_LEDS];
 #define BRIGHTNESS          96
 //end LED light specs
 
-const char* ssid = "YOUR SSID";
-const char* password = "YOUR PW";
-String node = "CURRENT NODE";
+const char* ssid = "Steamed LANs";
+const char* password = "albanyexpression";
+String node = "willy";
 
 //initalize memory space for JSON
 StaticJsonDocument<200> doc;
@@ -27,21 +27,24 @@ StaticJsonDocument<200> doc;
 int HTTP_PORT = 443;
 String HTTP_METHOD = "POST";
 char HOST_NAME[] = "isellmiataparts.com";
-String PATH_NAME = "https://YOUR URL/friendship/friendship.php";
-String GET_PATH = "https://YOUR URL/friendship/status.json";
-String token = "TOKEN SECRET";
+String PATH_NAME = "https://isellmiataparts.com/friendship/friendship.php";
+String GET_PATH = "https://isellmiataparts.com/friendship/status.json";
+String token = "grandpasconnyandella";
 
 const int buttonPin = 4;
 int buttonState = 0;
 int colorFromWeb = 0;
 int deviceColor = 0;
 
-//add timer interupts
+//add timer interupts for how frequent to call http
 static const unsigned long REFRESH_INTERVAL = 500; // ms
 static unsigned long lastRefreshTime = 0;
-const unsigned long SLEEP_INTERVAL = 1800000ul; //set this to fall asleep after 30 mins of no input
-static unsigned long sleepCounter = 0;
-int uptimeTracker = 0;
+
+//timer components for sleeping
+const unsigned long SLEEP_INTERVAL = 1800; //set this to fall asleep after 30 mins of no input - 1800
+int websiteUpdateTime = 0;
+int updateTime = 0;
+bool sleepStatus = false;
 
 //put ISR in ram
 void ICACHE_RAM_ATTR buttonPress();
@@ -52,13 +55,6 @@ NTPClient timeClient(ntpUDP, "pool.ntp.org");
 
 void setup() {
   Serial.begin(115200);
-
-  // Variable to save current epoch time
-  unsigned long epochTime;
-
-  uptimeTracker = getLastUpdateTime(); //what was the last update time at boot up
-  Serial.println("whats the last update time?");
-  Serial.println(uptimeTracker);
 
   //set button input
   pinMode(buttonPin, INPUT);
@@ -72,8 +68,12 @@ void setup() {
   Serial.println("");
   Serial.print("Connected to WiFi network with IP Address: ");
   Serial.println(WiFi.localIP());
-  
+
+  websiteUpdateTime = getLastUpdateTime();
+  updateTime = getTime(); //get the time at boot, assign it to update
+
   //setup fast LED
+
   delay(3000);
   Serial.println("setup LED");
   FastLED.addLeds<LED_TYPE,DATA_PIN,COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
@@ -93,34 +93,41 @@ void setup() {
 
 void loop() 
 { 
-  if((getTime()-uptimeTracker) >= SLEEP_INTERVAL)
-  {
-    //if it's been 30mins since an update send us off to sleep the LED
-    sleepTimer();
-  }
-  Serial.println(getTime()-uptimeTracker);
+  sleepTimer();
   //Check WiFi connection status
+  delay(1000); //slow things down a bit for rapid button presses
   if(WiFi.status()== WL_CONNECTED)
   { 
+    //if the website color is more up to date we should accept that color and set it.
+    //if the device is out of sync with the web we should push the color
     //established - the device color is out of sync with the web
     if(colorFromWeb != deviceColor)
     {
-      //update the website with the new color.
-      int updateStatus = postUpdate(token, deviceColor);
-      colorFromWeb = deviceColor;
-      if (updateStatus>0) 
-      {
-        Serial.print("HTTP Response code: ");
-        Serial.println(updateStatus);
-      }
-      else 
-      {
-        Serial.print("Error code: ");
-        Serial.println(updateStatus);
-      }
+      if(websiteUpdateTime > updateTime)
+        { 
+          setLEDColor(colorFromWeb);
+          FastLED.show();
+          sleepStatus = false;
+        }
+      if(updateTime > websiteUpdateTime)
+        { 
+          //update the website with the new color.
+          int updateStatus = postUpdate(token, deviceColor);
+          colorFromWeb = deviceColor;
+          if (updateStatus>0) 
+          {
+            Serial.print("HTTP Response code: ");
+            Serial.println(updateStatus);
+          }
+          else 
+          {
+            Serial.print("Error code: ");
+            Serial.println(updateStatus);
+          }
+        }
     }
     //every 30s check the web and get the color
-    httpGetColorRateLimited(deviceColor);
+    colorFromWeb = httpGetColorRateLimited(deviceColor);
   }
   else 
   {
@@ -141,8 +148,7 @@ int postUpdate(String token, int color)
       int httpResponseCode = https.POST(postData);
       // Free resources
       https.end();
-      //update the sleep counter since we just made an update.
-      sleepCounter = 0;
+      updateTime = getTime(); //reset the update time to now.
       return httpResponseCode;
 }
 
@@ -176,7 +182,7 @@ int getCurrentColor()
       client.stop();
     }
     currentColor = doc["Light Status"];
-    uptimeTracker = doc["Last Update"];
+    websiteUpdateTime = doc["Last Update"];
   }
   return currentColor;
 }
@@ -203,6 +209,7 @@ int getLastUpdateTime()
     }
     webUpdateTime = doc["Last Update"];
   }
+  if(webUpdateTime > updateTime) { sleepStatus = false; } //wake up the device if the web has an update
   return webUpdateTime;
 }
 
@@ -215,8 +222,8 @@ void setLEDColor(int currentColor)
   if(currentColor == 3) { fill_solid( leds, NUM_LEDS, CRGB::LightGreen); }
   if(currentColor == 4) { fill_solid( leds, NUM_LEDS, CRGB::Blue); }
   if(currentColor == 5) { fill_solid( leds, NUM_LEDS, CRGB::Purple); }
-  if(currentColor == 6) { fill_solid( leds, NUM_LEDS, CRGB::LightSalmon); }
-  if(currentColor == 7) { fill_solid( leds, NUM_LEDS, CRGB::Indigo); }
+  if(currentColor == 6) { fill_solid( leds, NUM_LEDS, CRGB::PowderBlue); }
+  if(currentColor == 7) { fill_solid( leds, NUM_LEDS, CRGB::LightSeaGreen); }
   if(currentColor == 8) { fill_solid( leds, NUM_LEDS, CRGB::Magenta); }
   FastLED.show();  
 }
@@ -233,34 +240,38 @@ int httpGetColorRateLimited(int currentDeviceColor)
 	{
 		lastRefreshTime += REFRESH_INTERVAL;
                 colorFromWeb = getCurrentColor();
-                Serial.println("checking for current color.");
+                Serial.println("Grabbing Current Color from Web and Returning");
+                Serial.println(colorFromWeb);
 	}
   return colorFromWeb;
 }
 
 void buttonPress()
 {
-  //button pressed, iterate the color.  Run only one time on this button press.
+  if(!sleepStatus) //this way we don't spin the color if the device is currently asleep
+  { 
+    //button pressed, iterate the color.  Run only one time on this button press.
     deviceColor = colorSelector(deviceColor);
-    setLEDColor(deviceColor);
-    FastLED.show();
-    //button pressed, reset input
-    sleepCounter = 0;
+  }
+
+  setLEDColor(deviceColor);
+  FastLED.show();
+  //button pressed, reset input
+  updateTime = getTime();
+  sleepStatus = false; //button press, wake up
 }
 
 void sleepTimer()
-{
-  //After 30 mins of no activity shut the light off
-
-  if(millis() - sleepCounter >= SLEEP_INTERVAL)
-	{
-		lastRefreshTime += SLEEP_INTERVAL;
-    Serial.println("Going to sleep.");
+{  
+  //if the device has been online more than 30 mins or received an update within 30 mins
+  //ALSO if the web hasn't updated in 30 mins
+  if(getTime() - updateTime >= SLEEP_INTERVAL && getTime() - websiteUpdateTime >= SLEEP_INTERVAL)
+  {
     setLEDColor(0);
     FastLED.show();
-	}
-  //if both above exceed 30mins set light color to 0:
-
+    //set sleep status to true so device knows where it is when it comes back online (address color advancement)
+    sleepStatus = true;
+  } 
 }
 
 unsigned long getTime() {
