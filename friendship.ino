@@ -26,9 +26,9 @@ StaticJsonDocument<200> doc;
 //http request declares
 int HTTP_PORT = 443;
 String HTTP_METHOD = "POST";
-char HOST_NAME[] = "isellmiataparts.com";
-String PATH_NAME = "https://isellmiataparts.com/friendship/friendship.php";
-String GET_PATH = "https://isellmiataparts.com/friendship/status.json";
+char HOST_NAME[] = ".com";
+String PATH_NAME = "https://.com/friendship/friendship.php";
+String GET_PATH = "https://.com/friendship/status.json";
 String token = "TOKEN PASS";
 
 const int buttonPin = 4;
