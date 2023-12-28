@@ -41,7 +41,7 @@ static const unsigned long REFRESH_INTERVAL = 500; // ms
 static unsigned long lastRefreshTime = 0;
 
 //timer components for sleeping
-const unsigned long SLEEP_INTERVAL = 60; //set this to fall asleep after 30 mins of no input - 1800
+const unsigned long SLEEP_INTERVAL = 1800; //set this to fall asleep after 30 mins of no input - 1800
 int websiteUpdateTime = 0;
 int updateTime = 0;
 bool sleepStatus = false;
